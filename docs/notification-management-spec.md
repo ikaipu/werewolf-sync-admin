@@ -19,8 +19,17 @@ The Notification Management System is an administrative interface for managing n
 - Columns:
   - Title
   - Creation Date
-  - Status (Active/Scheduled/Expired)
+  - Status (Draft/Active/Inactive/Expired)
   - Actions (Edit/Delete)
+- Status Types:
+  - Draft: Initial state for new notifications
+  - Active: Currently visible to users
+  - Inactive: Manually hidden from users
+  - Expired: Automatically set when expiration date is reached
+- Status Management:
+  - Manual status changes between Draft/Active/Inactive
+  - Automatic expiration based on expiration date
+  - Expiration date is optional and can be cleared
 - Sorting capabilities by date and status
 - Pagination with configurable page size
 - Search/filter functionality

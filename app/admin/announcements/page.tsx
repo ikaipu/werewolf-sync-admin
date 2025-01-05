@@ -14,6 +14,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { format } from 'date-fns';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -26,7 +27,7 @@ interface Notification {
   updatedAt: Timestamp;
   publishAt: Timestamp;
   expiresAt: Timestamp | null;
-  status: 'draft' | 'scheduled' | 'active' | 'expired';
+  status: 'draft' | 'active' | 'inactive' | 'expired';
   createdBy: string;
   updatedBy: string;
 }
@@ -50,9 +51,83 @@ export default function AnnouncementsManagement() {
   const [formData, setFormData] = useState<NotificationFormData>(INITIAL_FORM_DATA);
   const [isLoading, setIsLoading] = useState(false);
   const [isAuthorized, setIsAuthorized] = useState(false);
+  const [editingNotification, setEditingNotification] = useState<Notification | null>(null);
   const { toast } = useToast();
 
-  // Check authentication and admin status
+  const handleEdit = (notification: Notification) => {
+    setEditingNotification(notification);
+    setFormData({
+      title: notification.title,
+      content: notification.content,
+      publishAt: notification.publishAt.toDate(),
+      expiresAt: notification.expiresAt?.toDate() || null,
+    });
+  };
+
+  const handleUpdate = async () => {
+    if (!editingNotification) return;
+
+    const validationError = validateForm();
+    if (validationError) {
+      toast({
+        title: 'Validation Error',
+        description: validationError,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const notificationRef = doc(db, 'notifications', editingNotification.id);
+      const publishAtTimestamp = Timestamp.fromDate(formData.publishAt);
+      const expiresAtTimestamp = formData.expiresAt ? Timestamp.fromDate(formData.expiresAt) : null;
+
+      const now = new Date();
+      let status = editingNotification.status;
+
+      // Update status based on expiration date if not draft or inactive
+      if (status !== 'draft' && status !== 'inactive') {
+        if (expiresAtTimestamp && expiresAtTimestamp.toDate() < now) {
+          status = 'expired';
+        } else {
+          status = 'active';
+        }
+      }
+
+      await updateDoc(notificationRef, {
+        title: formData.title,
+        content: formData.content,
+        publishAt: publishAtTimestamp,
+        expiresAt: expiresAtTimestamp,
+        status,
+        updatedAt: Timestamp.now(),
+        updatedBy: auth.currentUser?.uid || 'unknown',
+      });
+
+      setEditingNotification(null);
+      setFormData(INITIAL_FORM_DATA);
+      toast({
+        title: 'Success',
+        description: 'Notification has been updated.',
+      });
+    } catch (error) {
+      console.error('Error updating notification:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update notification.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingNotification(null);
+    setFormData(INITIAL_FORM_DATA);
+  };
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
@@ -81,12 +156,30 @@ export default function AnnouncementsManagement() {
   useEffect(() => {
     if (!isAuthorized) return;
 
-    // Subscribe to notifications collection with real-time updates
     const q = query(collection(db, 'notifications'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const notificationData: Notification[] = [];
+      const now = new Date();
+
       snapshot.forEach((doc) => {
-        notificationData.push({ id: doc.id, ...doc.data() } as Notification);
+        const data = doc.data();
+        let status = data.status;
+        
+        // Only update status if it's not a draft and not inactive
+        if (status !== 'draft' && status !== 'inactive') {
+          const expiresAt = data.expiresAt?.toDate();
+          if (expiresAt && expiresAt < now) {
+            status = 'expired';
+          } else {
+            status = 'active';
+          }
+        }
+
+        notificationData.push({
+          id: doc.id,
+          ...data,
+          status,
+        } as Notification);
       });
       setNotifications(notificationData);
     }, (error) => {
@@ -106,9 +199,11 @@ export default function AnnouncementsManagement() {
     if (formData.title.length > 100) return 'Title must be less than 100 characters';
     if (!formData.content.trim()) return 'Content is required';
     if (formData.content.length > 2000) return 'Content must be less than 2000 characters';
-    if (formData.publishAt < new Date()) return 'Publication date must be in the future';
-    if (formData.expiresAt && formData.expiresAt <= formData.publishAt) {
-      return 'Expiration date must be after publication date';
+    // Only validate expiration date if it's set
+    if (formData.expiresAt) {
+      if (formData.expiresAt <= formData.publishAt) {
+        return 'Expiration date must be after publication date';
+      }
     }
     return null;
   };
@@ -138,14 +233,7 @@ export default function AnnouncementsManagement() {
       const now = Timestamp.now();
       const publishAtTimestamp = Timestamp.fromDate(formData.publishAt);
       const expiresAtTimestamp = formData.expiresAt ? Timestamp.fromDate(formData.expiresAt) : null;
-
-      let status: Notification['status'] = 'draft';
-      if (publishAtTimestamp.toDate() <= new Date()) {
-        status = 'active';
-      } else {
-        status = 'scheduled';
-      }
-
+      const status: Notification['status'] = 'draft';
       const userId = auth.currentUser?.uid || 'unknown';
 
       await addDoc(collection(db, 'notifications'), {
@@ -203,14 +291,46 @@ export default function AnnouncementsManagement() {
     }
   };
 
-  const getStatusBadgeVariant = (status: Notification['status']): "default" | "secondary" | "destructive" | "outline" => {
+  const handleUpdateStatus = async (id: string, newStatus: Notification['status']) => {
+    if (!isAuthorized) {
+      toast({
+        title: 'Unauthorized',
+        description: 'You do not have permission to update notifications.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      const notificationRef = doc(db, 'notifications', id);
+      await updateDoc(notificationRef, {
+        status: newStatus,
+        updatedAt: Timestamp.now(),
+        updatedBy: auth.currentUser?.uid || 'unknown',
+      });
+      toast({
+        title: 'Success',
+        description: 'Notification status has been updated.',
+      });
+    } catch (error) {
+      console.error('Error updating notification status:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update notification status.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const getStatusBadgeVariant = (status: Notification['status']) => {
     switch (status) {
       case 'active':
         return 'default';
-      case 'scheduled':
-        return 'secondary';
       case 'expired':
         return 'destructive';
+      case 'inactive':
+        return 'secondary';
+      case 'draft':
       default:
         return 'outline';
     }
@@ -292,12 +412,21 @@ export default function AnnouncementsManagement() {
                     {formData.expiresAt ? format(formData.expiresAt, "PPP") : "Select date"}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={formData.expiresAt || undefined}
-                    onSelect={(date) => setFormData({ ...formData, expiresAt: date || null })}
-                  />
+                <PopoverContent className="w-auto">
+                   <Calendar
+                     mode="single"
+                     selected={formData.expiresAt || undefined}
+                     onSelect={(date) => setFormData({ ...formData, expiresAt: date || null })}
+                   />
+                   <div className="p-3 border-t border-border">
+                     <Button
+                       variant="ghost"
+                       className="w-full text-destructive hover:text-destructive"
+                       onClick={() => setFormData({ ...formData, expiresAt: null })}
+                     >
+                       Clear date
+                     </Button>
+                   </div>
                 </PopoverContent>
               </Popover>
             </div>
@@ -333,36 +462,144 @@ export default function AnnouncementsManagement() {
                   <TableCell>{notification.title}</TableCell>
                   <TableCell className="max-w-md truncate">{notification.content}</TableCell>
                   <TableCell>
-                    <Badge variant={getStatusBadgeVariant(notification.status)}>
-                      {notification.status}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={getStatusBadgeVariant(notification.status) as "default" | "secondary" | "destructive" | "outline"}>
+                        {notification.status}
+                      </Badge>
+                      <Select
+                        defaultValue={notification.status}
+                        onValueChange={(value) => handleUpdateStatus(notification.id, value as Notification['status'])}
+                      >
+                        <SelectTrigger className="w-24">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="draft">Draft</SelectItem>
+                          <SelectItem value="active">Active</SelectItem>
+                          <SelectItem value="inactive">Inactive</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </TableCell>
                   <TableCell>{format(notification.publishAt.toDate(), "PPP")}</TableCell>
                   <TableCell>
                     {notification.expiresAt ? format(notification.expiresAt.toDate(), "PPP") : "-"}
                   </TableCell>
                   <TableCell>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="destructive" size="sm">Delete</Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Delete Notification</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Are you sure you want to delete this notification? This action cannot be undone.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={() => handleDeleteNotification(notification.id)}
-                          >
-                            Delete
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                    <div className="flex items-center gap-2">
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="outline" size="sm" onClick={() => handleEdit(notification)}>Edit</Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Edit Notification</AlertDialogTitle>
+                          </AlertDialogHeader>
+                          <div className="space-y-4 py-4">
+                            <Input
+                              placeholder="Title"
+                              value={formData.title}
+                              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                              maxLength={100}
+                            />
+                            <Textarea
+                              placeholder="Content"
+                              value={formData.content}
+                              onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                              maxLength={2000}
+                            />
+                            <div className="flex flex-col space-y-2">
+                              <label className="text-sm font-medium">Publication Date</label>
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    className={cn(
+                                      "justify-start text-left font-normal",
+                                      !formData.publishAt && "text-muted-foreground"
+                                    )}
+                                  >
+                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                    {formData.publishAt ? format(formData.publishAt, "PPP") : "Select date"}
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0">
+                                  <Calendar
+                                    mode="single"
+                                    selected={formData.publishAt}
+                                    onSelect={(date) => date && setFormData({ ...formData, publishAt: date })}
+                                  />
+                                </PopoverContent>
+                              </Popover>
+                            </div>
+                            <div className="flex flex-col space-y-2">
+                              <label className="text-sm font-medium">Expiration Date (Optional)</label>
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    className={cn(
+                                      "justify-start text-left font-normal",
+                                      !formData.expiresAt && "text-muted-foreground"
+                                    )}
+                                  >
+                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                    {formData.expiresAt ? format(formData.expiresAt, "PPP") : "Select date"}
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto">
+                                   <Calendar
+                                     mode="single"
+                                     selected={formData.expiresAt || undefined}
+                                     onSelect={(date) => setFormData({ ...formData, expiresAt: date || null })}
+                                   />
+                                   <div className="p-3 border-t border-border">
+                                     <Button
+                                       variant="ghost"
+                                       className="w-full text-destructive hover:text-destructive"
+                                       onClick={() => setFormData({ ...formData, expiresAt: null })}
+                                     >
+                                       Clear date
+                                     </Button>
+                                   </div>
+                                </PopoverContent>
+                              </Popover>
+                            </div>
+                          </div>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel onClick={handleCancelEdit}>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={handleUpdate}
+                              disabled={isLoading}
+                            >
+                              {isLoading ? 'Updating...' : 'Update'}
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="destructive" size="sm">Delete</Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Notification</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Are you sure you want to delete this notification? This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDeleteNotification(notification.id)}
+                            >
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
