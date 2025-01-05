@@ -1,5 +1,1 @@
-{
-  "projects": {
-    "default": "werewolfgamejp-dev"
-  }
-}
+../werewolf-sync/.firebaserc
