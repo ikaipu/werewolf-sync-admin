@@ -1,0 +1,13 @@
+// This file is kept for reference only.
+// The actual Firestore rules are maintained in the main project: werewolf-sync/firestore.rules
+// Please make any changes to the rules there to maintain consistency.
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // All rules are defined in the main project
+    match /{document=**} {
+      allow read, write: if false;  // Explicitly deny all access here
+    }
+  }
+}
