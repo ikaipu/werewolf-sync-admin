@@ -131,12 +131,25 @@ export default function AnnouncementsManagement() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        const adminStatus = await isAdmin();
-        setIsAuthorized(adminStatus);
-        if (!adminStatus) {
+        try {
+          const idTokenResult = await user.getIdTokenResult();
+          console.log('User claims:', idTokenResult.claims); // デバッグ用
+          const adminStatus = await isAdmin();
+          setIsAuthorized(adminStatus);
+          if (!adminStatus) {
+            toast({
+              title: 'Unauthorized',
+              description: 'You do not have permission to access this page.',
+              variant: 'destructive',
+            });
+            console.log('Admin status check failed'); // デバッグ用
+          }
+        } catch (error) {
+          console.error('Error checking authorization:', error);
+          setIsAuthorized(false);
           toast({
-            title: 'Unauthorized',
-            description: 'You do not have permission to access this page.',
+            title: 'Authorization Error',
+            description: 'Failed to verify admin privileges.',
             variant: 'destructive',
           });
         }

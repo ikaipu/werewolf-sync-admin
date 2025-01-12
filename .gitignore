@@ -53,5 +53,10 @@ desktop.ini
 .turbo
 .cache
 
+# Firebase
+service-account*.json
+!service-account.sample.json
+.firebase/
+
 # macOS
 .DS_Store
