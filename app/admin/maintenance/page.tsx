@@ -1,24 +1,66 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
+import { useMaintenance } from '@/hooks/use-maintenance'
+import { auth } from '@/lib/firebase'
+import { useToast } from '@/components/ui/use-toast'
 
 export default function MaintenanceManagement() {
-  const [maintenanceMode, setMaintenanceMode] = useState(false)
-  const [maintenanceMessage, setMaintenanceMessage] = useState('')
+  const { settings, loading, error, updateMaintenanceSettings } = useMaintenance()
+  const { toast } = useToast()
+  const [formEnabled, setFormEnabled] = useState(false)
+  const [formMessage, setFormMessage] = useState('')
 
-  const toggleMaintenanceMode = () => {
-    setMaintenanceMode(!maintenanceMode)
+  // 初期値の設定
+  useEffect(() => {
+    if (settings) {
+      setFormEnabled(settings.enabled)
+      setFormMessage(settings.message)
+    }
+  }, [settings])
+
+  const handleSaveSettings = async () => {
+    try {
+      const user = auth.currentUser
+      if (!user) {
+        toast({
+          title: "エラー",
+          description: "管理者としてログインしていません。",
+          variant: "destructive"
+        })
+        return
+      }
+
+      await updateMaintenanceSettings(formEnabled, formMessage, user.uid)
+      toast({
+        title: "成功",
+        description: "メンテナンス設定を更新しました。",
+      })
+    } catch (error) {
+      console.error('Error saving maintenance settings:', error)
+      toast({
+        title: "エラー",
+        description: "設定の更新に失敗しました。",
+        variant: "destructive"
+      })
+    }
   }
 
-  const saveMaintenanceSettings = () => {
-    // ここでAPIを呼び出してサーバーに設定を保存する処理を実装
-    console.log('メンテナンスモード:', maintenanceMode)
-    console.log('メンテナンスメッセージ:', maintenanceMessage)
+  if (loading) {
+    return <div>Loading...</div>
+  }
+
+  if (error) {
+    return <div>Error: {error}</div>
+  }
+
+  if (!settings) {
+    return <div>No settings found</div>
   }
 
   return (
@@ -34,8 +76,8 @@ export default function MaintenanceManagement() {
             <div className="flex items-center space-x-2">
               <Switch
                 id="maintenance-mode"
-                checked={maintenanceMode}
-                onCheckedChange={toggleMaintenanceMode}
+                checked={formEnabled}
+                onCheckedChange={setFormEnabled}
               />
               <Label htmlFor="maintenance-mode">メンテナンスモードを有効にする</Label>
             </div>
@@ -44,25 +86,14 @@ export default function MaintenanceManagement() {
               <Textarea
                 id="maintenance-message"
                 placeholder="メンテナンス中のメッセージを入力してください"
-                value={maintenanceMessage}
-                onChange={(e) => setMaintenanceMessage(e.target.value)}
+                value={formMessage}
+                onChange={(e) => setFormMessage(e.target.value)}
               />
             </div>
-            <Button onClick={saveMaintenanceSettings}>設定を保存</Button>
+            <Button onClick={handleSaveSettings}>設定を保存</Button>
           </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>メンテナンススケジュール</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p>ここにメンテナンススケジュールの管理機能を実装できます。</p>
-          {/* メンテナンススケジュールの追加、編集、削除機能をここに実装 */}
         </CardContent>
       </Card>
     </div>
   )
 }
-
