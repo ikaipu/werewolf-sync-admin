@@ -5,6 +5,7 @@ import { db } from '@/lib/firebase';
 interface MaintenanceSettings {
   enabled: boolean;
   message: string;
+  bypassToken: string;
   updatedAt: Date;
   updatedBy: string;
 }
@@ -28,6 +29,7 @@ export function useMaintenance() {
           setSettings({
             enabled: false,
             message: '',
+            bypassToken: '',
             updatedAt: new Date(),
             updatedBy: '',
           });
@@ -48,6 +50,7 @@ export function useMaintenance() {
   const updateMaintenanceSettings = async (
     enabled: boolean,
     message: string,
+    bypassToken: string,
     userId: string
   ) => {
     try {
@@ -55,6 +58,7 @@ export function useMaintenance() {
       await setDoc(maintenanceRef, {
         enabled,
         message,
+        bypassToken,
         updatedAt: new Date(),
         updatedBy: userId,
       });

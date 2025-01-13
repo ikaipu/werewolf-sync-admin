@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
 import { useMaintenance } from '@/hooks/use-maintenance'
 import { auth } from '@/lib/firebase'
 import { useToast } from '@/components/ui/use-toast'
@@ -15,12 +16,14 @@ export default function MaintenanceManagement() {
   const { toast } = useToast()
   const [formEnabled, setFormEnabled] = useState(false)
   const [formMessage, setFormMessage] = useState('')
+  const [formBypassToken, setFormBypassToken] = useState('')
 
   // 初期値の設定
   useEffect(() => {
     if (settings) {
       setFormEnabled(settings.enabled)
       setFormMessage(settings.message)
+      setFormBypassToken(settings.bypassToken)
     }
   }, [settings])
 
@@ -36,7 +39,12 @@ export default function MaintenanceManagement() {
         return
       }
 
-      await updateMaintenanceSettings(formEnabled, formMessage, user.uid)
+      await updateMaintenanceSettings(
+        formEnabled,
+        formMessage,
+        formBypassToken,
+        user.uid
+      )
       toast({
         title: "成功",
         description: "メンテナンス設定を更新しました。",
@@ -89,6 +97,20 @@ export default function MaintenanceManagement() {
                 value={formMessage}
                 onChange={(e) => setFormMessage(e.target.value)}
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="bypass-token">バイパストークン</Label>
+              <Input
+                id="bypass-token"
+                type="text"
+                placeholder="メンテナンスモードをバイパスするためのトークンを入力"
+                value={formBypassToken}
+                onChange={(e) => setFormBypassToken(e.target.value)}
+              />
+              <p className="text-sm text-gray-500">
+                このトークンをURLパラメータとして使用することで、メンテナンスモード中でもアクセスが可能になります。
+                例: ?bypass=token123
+              </p>
             </div>
             <Button onClick={handleSaveSettings}>設定を保存</Button>
           </div>
