@@ -23,6 +23,8 @@ interface Notification {
   id: string;
   title: string;
   content: string;
+  titleEn: string;
+  contentEn: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
   publishAt: Timestamp;
@@ -35,6 +37,8 @@ interface Notification {
 interface NotificationFormData {
   title: string;
   content: string;
+  titleEn: string;
+  contentEn: string;
   publishAt: Date;
   expiresAt: Date | null;
 }
@@ -42,6 +46,8 @@ interface NotificationFormData {
 const INITIAL_FORM_DATA: NotificationFormData = {
   title: '',
   content: '',
+  titleEn: '',
+  contentEn: '',
   publishAt: new Date(),
   expiresAt: null,
 };
@@ -59,6 +65,8 @@ export default function AnnouncementsManagement() {
     setFormData({
       title: notification.title,
       content: notification.content,
+      titleEn: notification.titleEn,
+      contentEn: notification.contentEn,
       publishAt: notification.publishAt.toDate(),
       expiresAt: notification.expiresAt?.toDate() || null,
     });
@@ -98,6 +106,8 @@ export default function AnnouncementsManagement() {
       await updateDoc(notificationRef, {
         title: formData.title,
         content: formData.content,
+        titleEn: formData.titleEn,
+        contentEn: formData.contentEn,
         publishAt: publishAtTimestamp,
         expiresAt: expiresAtTimestamp,
         status,
@@ -208,10 +218,13 @@ export default function AnnouncementsManagement() {
   }, [isAuthorized, toast]);
 
   const validateForm = (): string | null => {
-    if (!formData.title.trim()) return 'Title is required';
-    if (formData.title.length > 100) return 'Title must be less than 100 characters';
-    if (!formData.content.trim()) return 'Content is required';
-    if (formData.content.length > 2000) return 'Content must be less than 2000 characters';
+    if (!formData.title.trim()) return 'Japanese title is required';
+    if (formData.title.length > 100) return 'Japanese title must be less than 100 characters';
+    if (!formData.content.trim()) return 'Japanese content is required';
+    if (formData.content.length > 2000) return 'Japanese content must be less than 2000 characters';
+    // Validate English fields only if they are not empty
+    if (formData.titleEn.trim() && formData.titleEn.length > 100) return 'English title must be less than 100 characters';
+    if (formData.contentEn.trim() && formData.contentEn.length > 2000) return 'English content must be less than 2000 characters';
     // Only validate expiration date if it's set
     if (formData.expiresAt) {
       if (formData.expiresAt <= formData.publishAt) {
@@ -374,18 +387,40 @@ export default function AnnouncementsManagement() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <Input
-              placeholder="Title"
-              value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              maxLength={100}
-            />
-            <Textarea
-              placeholder="Content"
-              value={formData.content}
-              onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-              maxLength={2000}
-            />
+            <div className="grid gap-4">
+              <div>
+                <label className="text-sm font-medium mb-2 block">Japanese</label>
+                <Input
+                  placeholder="Title"
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  maxLength={100}
+                />
+                <Textarea
+                  className="mt-2"
+                  placeholder="Content"
+                  value={formData.content}
+                  onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                  maxLength={2000}
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-2 block">English (Optional)</label>
+                <Input
+                  placeholder="Title (English)"
+                  value={formData.titleEn}
+                  onChange={(e) => setFormData({ ...formData, titleEn: e.target.value })}
+                  maxLength={100}
+                />
+                <Textarea
+                  className="mt-2"
+                  placeholder="Content (English)"
+                  value={formData.contentEn}
+                  onChange={(e) => setFormData({ ...formData, contentEn: e.target.value })}
+                  maxLength={2000}
+                />
+              </div>
+            </div>
             <div className="flex flex-col space-y-2">
               <label className="text-sm font-medium">Publication Date</label>
               <Popover>
@@ -472,8 +507,18 @@ export default function AnnouncementsManagement() {
             <TableBody>
               {notifications.map((notification) => (
                 <TableRow key={notification.id}>
-                  <TableCell>{notification.title}</TableCell>
-                  <TableCell className="max-w-md truncate">{notification.content}</TableCell>
+                  <TableCell>
+                    <div className="space-y-1">
+                      <div>{notification.title}</div>
+                      <div className="text-sm text-muted-foreground">{notification.titleEn}</div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="space-y-1 max-w-md">
+                      <div className="truncate">{notification.content}</div>
+                      <div className="truncate text-sm text-muted-foreground">{notification.contentEn}</div>
+                    </div>
+                  </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Badge variant={getStatusBadgeVariant(notification.status) as "default" | "secondary" | "destructive" | "outline"}>
@@ -509,18 +554,40 @@ export default function AnnouncementsManagement() {
                             <AlertDialogTitle>Edit Notification</AlertDialogTitle>
                           </AlertDialogHeader>
                           <div className="space-y-4 py-4">
-                            <Input
-                              placeholder="Title"
-                              value={formData.title}
-                              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                              maxLength={100}
-                            />
-                            <Textarea
-                              placeholder="Content"
-                              value={formData.content}
-                              onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                              maxLength={2000}
-                            />
+                            <div className="grid gap-4">
+                              <div>
+                                <label className="text-sm font-medium mb-2 block">Japanese</label>
+                                <Input
+                                  placeholder="Title"
+                                  value={formData.title}
+                                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                                  maxLength={100}
+                                />
+                                <Textarea
+                                  className="mt-2"
+                                  placeholder="Content"
+                                  value={formData.content}
+                                  onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                                  maxLength={2000}
+                                />
+                              </div>
+                              <div>
+                                <label className="text-sm font-medium mb-2 block">English (Optional)</label>
+                                <Input
+                                  placeholder="Title (English)"
+                                  value={formData.titleEn}
+                                  onChange={(e) => setFormData({ ...formData, titleEn: e.target.value })}
+                                  maxLength={100}
+                                />
+                                <Textarea
+                                  className="mt-2"
+                                  placeholder="Content (English)"
+                                  value={formData.contentEn}
+                                  onChange={(e) => setFormData({ ...formData, contentEn: e.target.value })}
+                                  maxLength={2000}
+                                />
+                              </div>
+                            </div>
                             <div className="flex flex-col space-y-2">
                               <label className="text-sm font-medium">Publication Date</label>
                               <Popover>
