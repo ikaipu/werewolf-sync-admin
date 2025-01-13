@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "create-admin": "ts-node scripts/create-admin.ts"
+    "create-admin": "ts-node scripts/create-admin.ts",
+    "deploy": "next build && firebase deploy --only hosting"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.1.2",
