@@ -4,7 +4,8 @@ import { db } from '@/lib/firebase';
 
 interface MaintenanceSettings {
   enabled: boolean;
-  message: string;
+  message: string;           // Japanese message (required)
+  messageEn: string;         // English message (optional)
   bypassToken: string;
   updatedAt: Date;
   updatedBy: string;
@@ -29,6 +30,7 @@ export function useMaintenance() {
           setSettings({
             enabled: false,
             message: '',
+            messageEn: '',
             bypassToken: '',
             updatedAt: new Date(),
             updatedBy: '',
@@ -50,6 +52,7 @@ export function useMaintenance() {
   const updateMaintenanceSettings = async (
     enabled: boolean,
     message: string,
+    messageEn: string,
     bypassToken: string,
     userId: string
   ) => {
@@ -58,6 +61,7 @@ export function useMaintenance() {
       await setDoc(maintenanceRef, {
         enabled,
         message,
+        messageEn,
         bypassToken,
         updatedAt: new Date(),
         updatedBy: userId,
@@ -69,10 +73,20 @@ export function useMaintenance() {
     }
   };
 
+  // Get message based on language
+  const getMessage = (lang: string = 'ja') => {
+    if (!settings) return '';
+    if (lang === 'en' && settings.messageEn) {
+      return settings.messageEn;
+    }
+    return settings.message;
+  };
+
   return {
     settings,
     loading,
     error,
     updateMaintenanceSettings,
+    getMessage,
   };
 }

@@ -16,6 +16,7 @@ export default function MaintenanceManagement() {
   const { toast } = useToast()
   const [formEnabled, setFormEnabled] = useState(false)
   const [formMessage, setFormMessage] = useState('')
+  const [formMessageEn, setFormMessageEn] = useState('')
   const [formBypassToken, setFormBypassToken] = useState('')
 
   // 初期値の設定
@@ -23,6 +24,7 @@ export default function MaintenanceManagement() {
     if (settings) {
       setFormEnabled(settings.enabled)
       setFormMessage(settings.message)
+      setFormMessageEn(settings.messageEn || '')
       setFormBypassToken(settings.bypassToken)
     }
   }, [settings])
@@ -42,6 +44,7 @@ export default function MaintenanceManagement() {
       await updateMaintenanceSettings(
         formEnabled,
         formMessage,
+        formMessageEn,
         formBypassToken,
         user.uid
       )
@@ -90,13 +93,25 @@ export default function MaintenanceManagement() {
               <Label htmlFor="maintenance-mode">メンテナンスモードを有効にする</Label>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="maintenance-message">メンテナンスメッセージ</Label>
+              <Label htmlFor="maintenance-message">メンテナンスメッセージ（日本語）</Label>
               <Textarea
                 id="maintenance-message"
                 placeholder="メンテナンス中のメッセージを入力してください"
                 value={formMessage}
                 onChange={(e) => setFormMessage(e.target.value)}
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="maintenance-message-en">メンテナンスメッセージ（英語・任意）</Label>
+              <Textarea
+                id="maintenance-message-en"
+                placeholder="Enter maintenance message in English (optional)"
+                value={formMessageEn}
+                onChange={(e) => setFormMessageEn(e.target.value)}
+              />
+              <p className="text-sm text-gray-500">
+                英語メッセージが未入力の場合、日本語メッセージが英語圏のユーザーにも表示されます。
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="bypass-token">バイパストークン</Label>
